@@ -632,7 +632,7 @@ class CmdStanArgs:
             else:
                 if self.chain_ids is None:
                     raise ValueError(
-                        'seed must not be a list when no chains used'
+                        'list of seeds only valid if chain_ids also given'
                     )
 
                 if len(self.seed) != len(self.chain_ids):
