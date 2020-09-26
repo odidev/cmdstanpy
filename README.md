@@ -9,17 +9,17 @@ CmdStanPy is distributed via PyPi: https://pypi.org/project/cmdstanpy/
 
 ### Goals
 
-- Clean interface to Stan services so that CmdStanPy can keep up with Stan releases.
+- Runs all CmdStan methods.
 
-- Provide access to all CmdStan inference methods.
+- Clean interface to CmdStan; can run with any version above 2.19, keeps up with new releases.
 
 - Easy to install,
   + minimal Python library dependencies: numpy, pandas
-  + Python code doesn't interface directly with c++, only calls compiled executables
-
-- Modular - CmdStanPy produces a MCMC sample (or point estimate) from the posterior; other packages do analysis and visualization.
+  + Python code doesn't interface directly with C++; calls CmdStan executables via subprocess module.
 
 - Low memory overhead - by default, minimal memory used above that required by CmdStanPy; objects run CmdStan programs and track CmdStan input and output files.
+
+- Modular - CmdStanPy does inference; other packages do analysis and visualization.
 
 
 ### Source Repository

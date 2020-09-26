@@ -1,9 +1,10 @@
 Installation
 ============
 
-Both CmdStanPy and CmdStan must be installed;
-since the CmdStanPy package contains utility ``install_cmdstan``,
-we recommend installing the CmdStanPy package first.
+CmdStanPy requires a local installation of CmdStan.
+The CmdStanPy package contains a utility which automates
+the CmdStan install process,
+therefore we recommend installing CmdStanPy first.
 
 
 Install package CmdStanPy
@@ -92,14 +93,14 @@ can be used to override these defaults:
     install_cmdstan -d my_local_cmdstan -v 2.20.0
     ls -F my_local_cmdstan
 
-DIY Installion 
-^^^^^^^^^^^^^^
+Custom Installation 
+^^^^^^^^^^^^^^^^^^^
 
 If you with to install CmdStan yourself, follow the instructions
 in the `CmdStan User's Guide <https://mc-stan.org/docs/cmdstan-guide/cmdstan-installation.html>`__.
 
-Post Installion: Setting Environment Variables
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Post Installation: Setting Environment Variables
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The default for the CmdStan installation location
 is a directory named ``.cmdstanpy`` in your ``$HOME`` directory.

@@ -23,3 +23,15 @@ pre, code, .rst-content tt, .rst-content code, .rst-content tt.literal, .rst-con
 .wy-side-nav-search>div.version {
     color: #8c8c8c;
 }
+
+.rst-content .section ol p, .rst-content .section ul p {
+    margin-bottom: 2px;
+}
+
+.rst-content blockquote {
+    margin-bottom: 2px;
+}
+
+.wy-plain-list-disc li p:last-child, .rst-content .section ul li p:last-child, .rst-content .toctree-wrapper ul li p:last-child, article ul li p:last-child {
+    margin-bottom: 2px;
+}
