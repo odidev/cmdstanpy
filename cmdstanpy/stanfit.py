@@ -1,6 +1,7 @@
 """Container objects for results of CmdStan run(s)."""
 
 import os
+import platform
 import re
 import shutil
 import copy
@@ -16,6 +17,7 @@ import pandas as pd
 from cmdstanpy import _TMPDIR
 from cmdstanpy.utils import (
     check_sampler_csv,
+    scan_sampler_csv,
     scan_optimize_csv,
     scan_generated_quantities_csv,
     scan_variational_csv,
@@ -26,7 +28,7 @@ from cmdstanpy.utils import (
     get_logger,
     parse_var_dims,
 )
-from cmdstanpy.cmdstan_args import Method, CmdStanArgs
+from cmdstanpy.cmdstan_args import Method, CmdStanArgs, SamplerArgs
 
 
 class RunSet:
@@ -349,6 +351,66 @@ class CmdStanMCMC:
             '\n\t'.join(self.runset.stdout_files),
         )
         return repr
+
+    @staticmethod
+    def instantiate_from_csv(csv_files: List[str]):
+        """
+        Create CmdStanMCMC object from set of per-chain Stan CSV files.
+        Assembles in-memory draws array.
+
+        :param csv_files: list of stan-csv files generated
+            by any Stan interface.
+
+        :return: CmdStanMCMC object
+        """
+        print("instantiate_from_csv")
+        print(csv_files)
+        num_chains = len(csv_files)
+        dummy_chain_ids = [x + 1 for x in range(num_chains)]
+        sample_fit = None
+        try:
+            config = {}
+            # scan 1st csv file to get config
+            try:
+                config = scan_sampler_csv(csv_files[0])
+            except ValueError:
+                config = scan_sampler_csv(csv_files[0], True)
+            conf_iter_sampling = None
+            if 'num_samples' in config:
+                conf_iter_sampling = int(config['num_samples'])
+            conf_iter_warmup = None
+            if 'num_warmup' in config:
+                conf_iter_warmup = int(config['num_warmup'])
+            conf_thin = None
+            if 'thin' in config:
+                conf_thin = int(config['thin'])
+            sampler_args = SamplerArgs(
+                iter_sampling=conf_iter_sampling,
+                iter_warmup=conf_iter_warmup,
+                thin=conf_thin,
+            )
+            model_name = config['model']
+            exe = '.exe' if platform.system() == 'Windows' else ''
+            model_exe = model_name + exe
+            args = CmdStanArgs(
+                model_name,
+                model_exe,
+                chain_ids=dummy_chain_ids,
+                method_args=sampler_args,
+            )
+            runset = RunSet(
+                args=args, chains=num_chains, chain_ids=dummy_chain_ids
+            )
+            runset._csv_files = csv_files
+            sample_fit = CmdStanMCMC(runset)
+        except ValueError as exc:
+            raise ValueError(
+                'Invalid mcmc_sample, error:\n\t{}\n\t'
+                ' while processing files\n\t{}'.format(
+                    repr(exc), '\n\t'.join(csv_files)
+                )
+            ) from exc
+        return sample_fit
 
     @property
     def chains(self) -> int:
@@ -859,6 +921,44 @@ class CmdStanMCMC:
         """
         self.runset.save_csvfiles(dir)
 
+    def save_fitted_params(self, dir: str, basename: str = None) -> str:
+        """
+        Saves the fitted model parameters from all sampling draws
+        across all chains as a CSV file that can be used as input
+        to CmdStan's 'generate_quantitites' method.
+
+        :param dir: directory path
+        :param basename: csv file basename
+
+        :return: path to csv file
+        """
+        if basename is None:
+            basename = '.'.join(
+                ['-'.join([self.runset.model, 'fitted-params']), 'csv']
+            )
+        path = os.path.join(dir, basename)
+
+        # flatten draws array, choosing self._num_params columns
+        num_rows = self._draws_sampling * self.runset.chains
+        data = self.draws().reshape(
+            (num_rows, len(self.column_names)), order='A'
+        )
+        offset = len([x for x in self._column_names if x.endswith('__')])
+        header_row = ','.join(
+            self.column_names[offset : (offset + self._num_params)]
+        )
+        fitted_params = data[:, offset : (offset + self._num_params)]
+        fmt_str = ''.join(['%', str(self._sig_figs or 6), 'G'])
+        np.savetxt(
+            path,
+            fitted_params,
+            delimiter=',',
+            fmt=fmt_str,
+            header=header_row,
+            comments='',
+        )
+        return path
+
 
 class CmdStanMLE:
     """
@@ -1013,6 +1113,9 @@ class CmdStanGQ:
         """
         if not self.runset.method == Method.GENERATE_QUANTITIES:
             raise ValueError('Bad runset method {}.'.format(self.runset.method))
+        if self.mcmc_sample is None:
+            raise ValueError('Fitted sample not available.')
+
         if self._generated_quantities is None:
             self._assemble_generated_quantities()
 

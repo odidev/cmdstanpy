@@ -36,7 +36,6 @@ from cmdstanpy.utils import (
     MaybeDictToFilePath,
     TemporaryCopiedFile,
     get_logger,
-    scan_sampler_csv,
 )
 
 
@@ -782,12 +781,16 @@ class CmdStanModel:
         sig_figs: int = None,
     ) -> CmdStanGQ:
         """
-        Run CmdStan's generate_quantities method which runs the generated
-        quantities block of a model given an existing sample.
+        Run CmdStan's ``generate_quantities`` method which generates
+        additional quantities of interest by running just the generated
+        quantities block of a model, using the draws from the existing sample
+        as the values for all model parameters.
 
-        This function takes a CmdStanMCMC object and the dataset used to
-        generate that sample and calls to the CmdStan ``generate_quantities``
-        method to generate additional quantities of interest.
+        The existing sample argument can be either a CmdStanMCMC object,
+        the set of saved per-chain Stan CSV files from any Stan interface,
+        or a single CSV file containing just the per-draw parameter values.
+        (This last file can be created by the CmdStanMCMC ``save_fitted_params``
+        method).
 
         The ``CmdStanGQ`` object records the command, the return code,
         and the paths to the generate method output csv and console files.
@@ -807,8 +810,9 @@ class CmdStanModel:
             or as the path of a data file in JSON or Rdump format.
 
         :param mcmc_sample: Can be either a ``CmdStanMCMC`` object returned by
-            the ``sample`` method or a list of stan-csv files generated
-            by fitting the model to the data using any Stan interface.
+            the ``sample`` method,  a list of per-chain Stan CSV files,
+            or a single CSV file of per-draw parameter values which can be
+            created by the CmdStanMCMC ``save_fitted_params`` method.
 
         :param seed: The seed for random number generator. Must be an integer
             between 0 and 2^32 - 1. If unspecified,
@@ -835,60 +839,38 @@ class CmdStanModel:
         chains = 0
 
         if isinstance(mcmc_sample, CmdStanMCMC):
+            print("CmdStanMCMC object")
             sample_csv_files = mcmc_sample.runset.csv_files
             sample_drawset = mcmc_sample.draws_pd()
             chains = mcmc_sample.chains
             chain_ids = mcmc_sample.chain_ids
         elif isinstance(mcmc_sample, list):
+            print("List of CSV files")
             if len(mcmc_sample) < 1:
                 raise ValueError('MCMC sample cannot be empty list')
             sample_csv_files = mcmc_sample
-            chains = len(sample_csv_files)
-            chain_ids = [x + 1 for x in range(chains)]
+            sample_inst = CmdStanMCMC.instantiate_from_csv(sample_csv_files)
+            sample_drawset = sample_inst.draws_pd()
+            chains = sample_inst.chains
+            chain_ids = sample_inst.chain_ids
+        elif isinstance(mcmc_sample, str):
+            sample_csv_files = [mcmc_sample]
+            try:
+                # allow single Stan CSV file
+                sample_inst = CmdStanMCMC.instantiate_from_csv(sample_csv_files)
+                print("here:  861")
+                sample_drawset = sample_inst.draws_pd()
+                chains = sample_inst.chains
+                chain_ids = sample_inst.chain_ids
+            except ValueError as exc:
+                # regular CSV file, just params draws
+                chains = 1
+                chain_ids = [ 1 ]
         else:
             raise ValueError(
-                'MCMC sample must be either CmdStanMCMC object'
-                ' or list of paths to sample csv_files.'
+                'MCMC sample must be either CmdStanMCMC object,'
+                ' list of Stan CSV files, or single CSV file.'
             )
-        try:
-            if sample_drawset is None:  # assemble sample from csv files
-                config = {}
-                # scan 1st csv file to get config
-                try:
-                    config = scan_sampler_csv(sample_csv_files[0])
-                except ValueError:
-                    config = scan_sampler_csv(sample_csv_files[0], True)
-                conf_iter_sampling = None
-                if 'num_samples' in config:
-                    conf_iter_sampling = int(config['num_samples'])
-                conf_iter_warmup = None
-                if 'num_warmup' in config:
-                    conf_iter_warmup = int(config['num_warmup'])
-                conf_thin = None
-                if 'thin' in config:
-                    conf_thin = int(config['thin'])
-                sampler_args = SamplerArgs(
-                    iter_sampling=conf_iter_sampling,
-                    iter_warmup=conf_iter_warmup,
-                    thin=conf_thin,
-                )
-                args = CmdStanArgs(
-                    self._name,
-                    self._exe_file,
-                    chain_ids=chain_ids,
-                    method_args=sampler_args,
-                )
-                runset = RunSet(args=args, chains=chains, chain_ids=chain_ids)
-                runset._csv_files = sample_csv_files
-                sample_fit = CmdStanMCMC(runset)
-                sample_drawset = sample_fit.draws_pd()
-        except ValueError as exc:
-            raise ValueError(
-                'Invalid mcmc_sample, error:\n\t{}\n\t'
-                ' while processing files\n\t{}'.format(
-                    repr(exc), '\n\t'.join(sample_csv_files)
-                )
-            ) from exc
 
         generate_quantities_args = GenerateQuantitiesArgs(
             csv_files=sample_csv_files
