@@ -173,13 +173,7 @@ class CmdStanPathTest(unittest.TestCase):
 
     def test_cmdstan_version_at(self):
         cmdstan_path()  # sets os.environ['CMDSTAN']
-        good_path = os.environ['CMDSTAN']
-        del os.environ['CMDSTAN']
-        os.environ['CMDSTAN'] = os.path.join(
-            os.path.dirname(good_path), 'cmdstan-2.24.1'
-        )
-        self.assertTrue(cmdstan_version_at(2, 24))
-        self.assertFalse(cmdstan_version_at(2, 25))
+        self.assertFalse(cmdstan_version_at(99, 99))
 
     def test_dict_to_file(self):
         file_good = os.path.join(DATAFILES_PATH, 'bernoulli_output_1.csv')
