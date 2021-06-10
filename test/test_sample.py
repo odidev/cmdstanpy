@@ -1427,6 +1427,19 @@ class CmdStanMCMCTest(unittest.TestCase):
             diagnostics_file = profile_fit.runset.diagnostic_files[i]
             self.assertTrue(os.path.exists(diagnostics_file))
 
+    def test_big_stderr(self):
+        stan = os.path.join(DATAFILES_PATH, 'reject_all.stan')
+        reject_model = CmdStanModel(stan_file=stan)
+        reject_fit = reject_model.sample(
+            chains=1,
+            iter_sampling=10000,
+        )
+        for i in range(reject_fit.runset.chains):
+            csv_file = reject_fit.runset.csv_files[i]
+            stdout_file = reject_fit.runset.stdout_files[i]
+            self.assertTrue(os.path.exists(csv_file))
+            self.assertTrue(os.path.exists(stdout_file))
+
 
 if __name__ == '__main__':
     unittest.main()
