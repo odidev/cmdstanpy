@@ -1168,11 +1168,12 @@ class CmdStanModel:
         )
         self._logger.debug('sampling: %s', cmd)
         try:
+            stderr_fp = open(runset.stderr_files[idx], 'w+')
             proc = subprocess.Popen(
                 cmd,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=stderr_fp,
                 env=os.environ,
             )
             if pbar:
@@ -1180,17 +1181,12 @@ class CmdStanModel:
             stdout, stderr = proc.communicate()
             if pbar:
                 stdout = stdout_pbar + stdout
-
+            stderr_fp.close()
             self._logger.info('finish chain %u', idx + 1)
             runset._set_retcode(idx, proc.returncode)
             if stdout:
                 with open(runset.stdout_files[idx], 'w+') as fd:
                     fd.write(stdout.decode('utf-8'))
-            console_error = ''
-            if stderr:
-                console_error = stderr.decode('utf-8')
-                with open(runset.stderr_files[idx], 'w+') as fd:
-                    fd.write(console_error)
 
             if proc.returncode != 0:
                 if proc.returncode < 0:
@@ -1202,8 +1198,12 @@ class CmdStanModel:
                     msg = '{}, non-zero return code {}'.format(
                         msg, proc.returncode
                     )
-                if len(console_error) > 0:
-                    msg = '{}\n error message:\n\t{}'.format(msg, console_error)
+                with open(runset.stderr_files[idx], 'r') as stderr_fp:
+                    console_errors = stderr_fp.readlines()
+                if len(console_errors) > 0:
+                    msg = '{}\n error message:\n\t{}'.format(
+                        msg, console_errors
+                    )
                 self._logger.error(msg)
 
         except OSError as e:
